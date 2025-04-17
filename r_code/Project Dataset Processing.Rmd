@@ -1,0 +1,104 @@
+---
+title: "Project Data Preprocessing"
+output: html_document
+date: "2024-05-31"
+---
+## Loading libraries
+```{r}
+# Load necessary library
+library(readr)
+library(dplyr)
+```
+
+## Reading Data
+```{r}
+# Read the dataset
+movies <- read_csv("movies.csv")
+```
+
+## Checking missing values
+```{r}
+# Calculate the number of missing values in each column
+missing_values <- sapply(movies, function(x) sum(is.na(x)))
+
+# Print the result
+print(missing_values)
+```
+
+## Handling missing values
+```{r}
+
+# Replace missing values in numerical columns with their column mean
+movies_dataset <- movies %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .)))
+
+# Replace missing ratings with "Not Rated"
+movies_dataset$rating <- ifelse(is.na(movies_dataset$rating), "Not Rated", movies_dataset$rating)
+
+# Verify all missing values are handled
+sapply(movies_dataset, function(x) sum(is.na(x)))
+```
+
+## Handling Genres
+```{r}
+movies_dataset <- movies_dataset %>%
+  mutate(genre = case_when(
+    genre %in% c("Crime", "Thriller") ~ "Crime/Thriller",
+    genre %in% c("Horror", "Mystery") ~ "Horror/Mystery",
+    genre %in% c("History", "Biography") ~ "Biography",
+    genre %in% c("Sci-Fi", "Fantasy") ~ "Fantasy/Sci-Fi",
+    genre %in% c("Music", "Musical", "Sport", "Western") ~ "Other",
+    TRUE ~ as.character(genre)
+  ))
+
+# View unique genre categories
+unique(movies_dataset$genre)
+```
+
+## Adding new columns for futher visualization
+```{r}
+# 1) Create the revenue column
+movies_dataset <- mutate(movies_dataset, revenue = gross - budget)
+
+# 2) Create a decade column
+movies_dataset <- mutate(movies_dataset, decade = floor(year / 10) * 10)
+
+# 3) Create a rounded score column
+movies_dataset <- mutate(movies_dataset, rounded_score = round(score))
+```
+
+
+## Adjusting Revenue by Inflation
+```{r}
+# Read the CPI data
+cpi_data <- read_csv("cpi.csv")
+
+# Merge CPI data with movie data
+movies_dataset <- movies_dataset %>%
+  left_join(cpi_data, by = "year")
+
+# Define the base year CPI
+base_year_cpi <- 100
+
+# Calculate the inflation-adjusted revenue
+movies_dataset <- movies_dataset %>%
+  mutate(ia_revenue = revenue * (base_year_cpi / cpi))
+```
+
+# Convert Gross, Budget, and Revenue to millions
+```{r}
+movies_dataset$gross_millions <- movies_dataset$gross / 1000000
+movies_dataset$budget_millions <- movies_dataset$budget / 1000000
+movies_dataset$revenue_millions <- movies_dataset$revenue / 1000000
+movies_dataset$ia_revenue_millions <- movies_dataset$ia_revenue / 1000000
+```
+
+```{r}
+sapply(movies_dataset, function(x) length(unique(x)))
+```
+
+# Export Cleaned Dataset
+```{r}
+write_csv(movies_dataset, "movies_final.csv")
+```
+

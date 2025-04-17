@@ -1,0 +1,155 @@
+---
+title: "Movie Industry Visualizations"
+output: html_document
+date: "2024-06-01"
+---
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(readr)
+library(RColorBrewer)
+library(ggridges)
+library(circlize)
+library(ggplot2)
+library(scales)
+library(reshape2)
+```
+
+# Load Cleaned Dataset
+```{r}
+movies_dataset = read.csv("movies_final.csv")
+```
+
+# Correlation Heatmap
+```{r}
+# Select numerical columns
+numerical_cols <- c("budget","gross","revenue","runtime","score","votes")
+movies_numeric <- movies_dataset[, numerical_cols]
+
+# Calculate correlation matrix
+correlation_matrix <- cor(movies_numeric)
+
+# Set lower triangle values to NA for numeric display
+correlation_matrix_upper <- correlation_matrix
+correlation_matrix_upper[lower.tri(correlation_matrix_upper)] <- NA
+
+# Set upper triangle values to NA for color map
+correlation_matrix_lower <- correlation_matrix
+correlation_matrix_lower[upper.tri(correlation_matrix_lower)] <- NA
+
+# Convert correlation matrices to long format
+melted_upper <- melt(correlation_matrix_upper, na.rm = TRUE)
+melted_lower <- melt(correlation_matrix_lower, na.rm = TRUE)
+
+# Plot the heatmap
+ggplot() +
+  geom_tile(data = melted_lower, aes(x = Var1, y = Var2, fill = value), color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1, 1), space = "Lab", name = "Correlation") +
+  geom_text(data = melted_upper, aes(x = Var1, y = Var2, label = round(value, 2)), color = "black", size = 6) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold", size = 14), 
+        axis.text.y = element_text(face = "bold", size = 14),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        plot.title = element_text(size = 30, face = "bold")) + 
+  labs(title = "Correlation Matrix Heatmap", x = NULL, y = NULL)
+
+```
+
+# Genre distribution of each decade (MOSIAC PLOT)
+```{r}
+genre_decade_table <- table(movies_dataset$genre, movies_dataset$decade)
+colors <- colorRampPalette(brewer.pal(9, "Pastel1"))(length(unique(movies_dataset$genre)))
+
+# Adjust the margins and text sizes using par
+par(cex.main = 2,   # Title size
+    cex.lab = 1.8,    # Axis label size
+    cex.axis = 1.8,   # Axis text size
+    mar = c(5, 5, 4, 2) + 0.1,  # Margins
+    cex = 1.6,  # Adjust overall text size
+    font = 2  # Bold font
+)
+
+# Create a Mosaic Plot with genres on the x-axis, decades on the y-axis
+mosaicplot(genre_decade_table,
+           main = "Genre Distribution Over Decades",
+           xlab = "Genre",
+           ylab = "Decade",
+           color = colors,
+           las = 2
+)
+
+```
+
+# Ridgeplot of runtime over the years
+```{r}
+# Prepare the data
+movies_dataset <- movies_dataset %>%
+  filter(!is.na(runtime)) %>%
+  mutate(year = as.factor(year))  # Convert year to a factor for plotting
+
+# Create the ridge plot with a single pastel color and opacity
+ggplot(movies_dataset, aes(x = runtime, y = year)) +
+  geom_density_ridges(fill = alpha("skyblue", 0.5), scale = 3, rel_min_height = 0.01) +
+  labs(title = "Distribution of Movie Runtimes Over the Years",
+       x = "Runtime (minutes)",
+       y = "Year") +
+  scale_x_continuous(limits = c(30, 200), breaks = seq(30, 200, by = 30)) +
+  scale_y_discrete(breaks = levels(movies_dataset$year)[seq(1, length(levels(movies_dataset$year)), by = 5)]) +
+  theme_ridges() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# Production Company revenue contribution
+```{r}
+# Aggregate revenue by company
+company_revenue <- movies_dataset %>%
+  group_by(company) %>%
+  summarise(total_revenue = sum(revenue, na.rm = TRUE))
+
+# Rank companies by total revenue
+company_revenue <- company_revenue %>%
+  arrange(desc(total_revenue)) %>%
+  mutate(rank = row_number())
+
+# Identify top 5 companies
+top_companies <- company_revenue %>%
+  mutate(company_group = ifelse(rank <= 5, as.character(company), "Others"))
+
+# Aggregate the rest into "Others"
+top_companies <- top_companies %>%
+  group_by(company_group) %>%
+  summarise(total_revenue = sum(total_revenue))
+
+# Calculate percentages
+top_companies <- top_companies %>%
+  mutate(percentage = total_revenue / sum(total_revenue) * 100)
+
+# Create the pie chart
+ggplot(top_companies, aes(x = "", y = total_revenue, fill = company_group)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  labs(title = "Revenue Contribution by Company", x = NULL, y = NULL, fill = "Production Company") +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5), size = 5) + 
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+        legend.title = element_text(size = 12, face = "bold"),
+        legend.text = element_text(size = 12, face = "bold")) 
+```
+
+# Genre Distribution using Density plots
+```{r}
+# Create density plots for each genre with fixed scales and specified x-axis range
+ggplot(movies_dataset, aes(x=score, fill=genre)) +
+  geom_density(alpha=0.75) +  # Semi-transparent fill for better visualization
+  facet_wrap(~genre, scales = "fixed") +  # Same scale for each plot
+  scale_x_continuous(limits = c(2, 10)) +  # Set x-axis from 2 to 10
+  labs(title="Density of Movie Score by Genre", x="Score", y="Density") +
+  theme_minimal() +
+  theme(legend.position="none")  # Remove legend to clean up the plot
+
+print(plot)
+```
+
