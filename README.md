@@ -1,8 +1,6 @@
 # 🎬 Movie Industry Data Analysis
 
-**Course:** DSC 465 – Data Visualization  
-**Team Members:** Akshat Gaur, Pranati Gedela, Simol Gandhi, Suraj Nair, Zeeshan Mawani  
-
+**Data Visualization**
 ---
 
 ## 📌 Project Objective
